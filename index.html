@@ -3,135 +3,324 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Racing Game</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Liquid Glass Racing 3D</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;overflow:hidden;background:#87ceeb;font-family:Arial,sans-serif}
-#hud{position:fixed;top:12px;left:12px;color:white;background:#111c;padding:12px 16px;border-radius:12px;z-index:2}
-#hud h2{margin:0 0 6px;color:#00ff9d}
-#controls{position:fixed;bottom:22px;left:0;right:0;display:flex;justify-content:space-between;padding:0 22px;z-index:2}
-button{background:#111d;color:white;border:2px solid #00ff9d;border-radius:15px;padding:17px 24px;font-size:24px;font-weight:bold;touch-action:none}
-#hint{position:fixed;bottom:100px;width:100%;text-align:center;color:white;text-shadow:0 2px 4px black;pointer-events:none}
+body{margin:0;overflow:hidden;background:#071a32;font-family:Arial,sans-serif;touch-action:none;user-select:none}
+canvas{display:block}
+.glass{
+ background:linear-gradient(135deg,rgba(255,255,255,.25),rgba(100,190,255,.07) 45%,rgba(255,255,255,.12));
+ border:1px solid rgba(255,255,255,.65);
+ box-shadow:inset 0 1px 2px #ffffff77,inset 0 -2px 5px #52baff33,0 0 14px #36aaff44;
+ backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+}
+#hud{position:fixed;top:12px;left:12px;z-index:3;color:#fff;padding:13px 16px;border-radius:20px;min-width:155px}
+#hud h2{font-size:17px;color:#8feaff;margin:0 0 9px;letter-spacing:1px}
+.stat{font-size:12px;margin:6px 0;color:#d5f2ff}
+#speed{font-size:25px;font-weight:bold;color:#fff}
+#nitroBar{height:6px;border-radius:9px;background:#ffffff30;margin-top:5px;overflow:hidden}
+#nitroFill{height:100%;width:100%;background:linear-gradient(90deg,#00eaff,#608aff);box-shadow:0 0 12px #00d9ff}
+#message{position:fixed;top:37%;width:100%;text-align:center;color:white;font-size:30px;font-weight:900;text-shadow:0 0 18px #00aaff;z-index:4;pointer-events:none}
+#restart{position:fixed;display:none;z-index:5;top:52%;left:50%;transform:translateX(-50%);color:white;font-weight:bold;padding:15px 25px;border-radius:20px;font-size:17px}
+#controls{position:fixed;bottom:17px;left:0;right:0;padding:0 13px;display:flex;align-items:center;justify-content:space-between;gap:7px;z-index:5}
+.group{display:flex;gap:7px;align-items:center}
+.control{width:clamp(53px,16vw,76px);height:clamp(59px,17vw,78px);padding:0;border-radius:24px;color:white;font-size:25px;font-weight:bold;touch-action:none;transition:filter .1s}
+.control:active{filter:brightness(1.7);box-shadow:0 0 25px #00d9ff}
+#gas{width:clamp(64px,19vw,86px);color:#c9faff;font-size:15px}
+#nitro{width:clamp(59px,17vw,80px);color:#b2f8ff;font-size:14px}
+#help{position:fixed;bottom:105px;left:0;right:0;text-align:center;color:#fff;font-size:11px;text-shadow:0 0 8px #009dff;z-index:2;pointer-events:none}
+#pause{position:fixed;right:14px;top:14px;width:43px;height:43px;border-radius:50%;color:white;font-size:17px;z-index:4;padding:0}
+@media(max-width:360px){#hud{padding:9px;min-width:130px}#hud h2{font-size:14px}.stat{font-size:10px}}
 </style>
 </head>
 <body>
-<div id="hud"><h2>🏁 TURBO RACE</h2><div>Speed: <span id="speed">0</span> km/h</div><div>Distance: <span id="distance">0</span> m</div></div>
-<div id="hint">Hold the arrows to steer</div>
-<div id="controls">
-<button id="left">⬅️</button>
-<button id="right">➡️</button>
+<div id="hud" class="glass">
+<h2>◆ LIQUID RACER</h2>
+<div class="stat">SPEED <span id="speed">0</span> KM/H</div>
+<div class="stat">DISTANCE <span id="distance">0</span> M</div>
+<div class="stat">SCORE <span id="score">0</span></div>
+<div class="stat">NITRO <span id="nitroText">READY</span></div>
+<div id="nitroBar"><div id="nitroFill"></div></div>
 </div>
+<button id="pause" class="glass">Ⅱ</button>
+<div id="message">TURBO RACING</div>
+<button id="restart" class="glass">↻ RACE AGAIN</button>
+<div id="help">HOLD GAS TO DRIVE • AVOID TRAFFIC • USE NITRO!</div>
+<div id="controls">
+<div class="group">
+<button id="left" class="control glass">◀</button>
+<button id="right" class="control glass">▶</button>
+</div>
+<div class="group">
+<button id="nitro" class="control glass">⚡<br><small>NITRO</small></button>
+<button id="gas" class="control glass">▲<br>GAS</button>
+</div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script>
+(()=>{
+const $=id=>document.getElementById(id);
+if(!window.THREE){$('message').textContent='Connect to the internet and refresh';return}
+
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x87ceeb);
-scene.fog=new THREE.Fog(0x87ceeb,45,180);
+scene.background=new THREE.Color(0x75bce9);
+scene.fog=new THREE.Fog(0x75bce9,55,190);
+
 const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,300);
-camera.position.set(0,5,10);
+camera.position.set(0,5.3,10);
+
 const renderer=new THREE.WebGLRenderer({antialias:false});
 renderer.setSize(innerWidth,innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
-renderer.shadowMap.enabled=false;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
-scene.add(new THREE.HemisphereLight(0xffffff,0x53713b,2));
-const sun=new THREE.DirectionalLight(0xffffff,2);
-sun.position.set(-5,12,5);scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xe1f5ff,0x344c35,2));
+const sun=new THREE.DirectionalLight(0xffffff,2.3);
+sun.position.set(-7,14,8);scene.add(sun);
 
-const mat=(color)=>new THREE.MeshLambertMaterial({color});
-const grass=mat(0x309447), asphalt=mat(0x30333b);
-const road=new THREE.Mesh(new THREE.PlaneGeometry(12,240),asphalt);
-road.rotation.x=-Math.PI/2;road.position.set(0,-.06,-75);scene.add(road);
-const ground=new THREE.Mesh(new THREE.PlaneGeometry(300,300),grass);
-ground.rotation.x=-Math.PI/2;ground.position.y=-.12;scene.add(ground);
+const mat=(c,r=0)=>new THREE.MeshStandardMaterial({color:c,roughness:r});
+const roadMat=mat(0x252d39,.75),grassMat=mat(0x267d49);
+const white=mat(0xf4fbff),black=mat(0x080d16,.4);
+const blue=mat(0x057bff,.2),glassMat=new THREE.MeshStandardMaterial({color:0x54cfff,roughness:.16,metalness:.35});
+const rubber=mat(0x11151c,.9);
+
+function box(parent,w,h,d,m,x,y,z){
+ const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);
+ o.position.set(x,y,z);parent.add(o);return o;
+}
+function cylinder(parent,rt,rb,h,m,x,y,z){
+ const o=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,8),m);
+ o.position.set(x,y,z);parent.add(o);return o;
+}
+
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(400,400),grassMat);
+ground.rotation.x=-Math.PI/2;ground.position.y=-.16;scene.add(ground);
+const road=new THREE.Mesh(new THREE.PlaneGeometry(13,280),roadMat);
+road.rotation.x=-Math.PI/2;road.position.set(0,-.08,-120);scene.add(road);
 
 const lines=[];
-for(let z=-190;z<20;z+=10){
- const line=new THREE.Mesh(new THREE.BoxGeometry(.14,.025,4),mat(0xffffff));
- line.position.set(0,.01,z);scene.add(line);lines.push(line);
+for(let z=-255;z<20;z+=10){
+ const l=box(scene,.12,.025,4,white,0,0,-1);
+ l.position.z=z;lines.push(l);
 }
-for(const x of [-6,6]){
- const edge=new THREE.Mesh(new THREE.BoxGeometry(.18,.1,240),mat(0xffffff));
- edge.position.set(x,0,-75);scene.add(edge);
-}
-for(let z=-190;z<10;z+=12){
- for(const x of [-1.8,1.8]){
-  const tree=new THREE.Group();
-  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.12,.18,1,6),mat(0x704324));
-  trunk.position.y=.5;tree.add(trunk);
-  const leaves=new THREE.Mesh(new THREE.ConeGeometry(.9,2.4,7),mat(0x126b35));
-  leaves.position.y=2;tree.add(leaves);
-  tree.position.set(x<0?-9:9,0,z);
-  scene.add(tree);
+for(const x of [-6.4,6.4]){
+ for(let z=-255;z<15;z+=5){
+  box(scene,.16,.06,2.5,white,x,0,z);
  }
 }
 
+// Trees and roadside scenery.
+const scenery=[];
+for(let z=-240;z<15;z+=15){
+ for(const x of [-1,1]){
+  const tree=new THREE.Group();
+  cylinder(tree,.16,.22,1,mat(0x775033),0,.5,0);
+  const leaves=new THREE.Mesh(new THREE.ConeGeometry(1.05,2.8,7),mat(0x086c45));
+  leaves.position.y=2.15;tree.add(leaves);
+  tree.position.set(x*10,0,z);scene.add(tree);scenery.push(tree);
+ }
+}
+
+// Build a detailed futuristic supercar.
 const car=new THREE.Group();
-const red=mat(0xff243a),black=mat(0x171923),glass=mat(0x80dfff);
-const body=new THREE.Mesh(new THREE.BoxGeometry(1.65,.48,3),red);
-body.position.y=.65;car.add(body);
-const cabin=new THREE.Mesh(new THREE.BoxGeometry(1.15,.55,1.35),glass);
-cabin.position.set(0,1.12,-.15);car.add(cabin);
-for(const x of [-.91,.91])for(const z of [-.92,.95]){
- const wheel=new THREE.Mesh(new THREE.BoxGeometry(.28,.55,.65),black);
- wheel.position.set(x,.42,z);car.add(wheel);
+const paint=new THREE.MeshStandardMaterial({color:0x075cff,metalness:.72,roughness:.2});
+const darkGlass=new THREE.MeshStandardMaterial({color:0x122b43,metalness:.55,roughness:.13});
+const tire=mat(0x10131a,.85);
+const rim=new THREE.MeshStandardMaterial({color:0xbdefff,metalness:.85,roughness:.2});
+const redLight=new THREE.MeshStandardMaterial({color:0xff163b,emissive:0xff0022,emissiveIntensity:2});
+const headLight=new THREE.MeshStandardMaterial({color:0xc4f8ff,emissive:0x4bdfff,emissiveIntensity:2});
+
+box(car,1.8,.4,3.45,paint,0,.66,0);
+box(car,1.68,.16,1.05,paint,0,.83,-1.04);
+box(car,1.72,.16,.85,paint,0,.83,1.16);
+
+// Low cockpit and windshield.
+box(car,1.18,.53,1.5,darkGlass,0,1.05,.05);
+box(car,1.23,.09,1.55,paint,0,1.33,.05);
+box(car,1.5,.12,.4,paint,0,.85,-1.53);
+
+// Front splitter and rear diffuser.
+box(car,1.95,.1,.42,black,0,.39,-1.62);
+box(car,1.6,.14,.38,black,0,.4,1.72);
+
+// Headlights and taillights.
+for(const x of [-.65,.65]){
+ box(car,.43,.12,.08,headLight,x,.77,-1.73);
+ box(car,.48,.11,.08,redLight,x,.77,1.74);
+ box(car,.14,.1,.18,black,x,.48,1.72);
+}
+
+// Wheels with bright metallic hubs.
+for(const x of [-.94,.94]){
+ for(const z of [-1.05,1.1]){
+  const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.34,.34,.24,16),tire);
+  wheel.rotation.z=Math.PI/2;wheel.position.set(x,.38,z);car.add(wheel);
+  const hub=new THREE.Mesh(new THREE.CylinderGeometry(.17,.17,.255,12),rim);
+  hub.rotation.z=Math.PI/2;hub.position.set(x*1.015,.38,z);car.add(hub);
+ }
+}
+
+// Spoiler, wing supports, and exhausts.
+for(const x of [-.55,.55])box(car,.09,.4,.1,black,x,1.03,1.5);
+box(car,1.95,.1,.32,black,0,1.23,1.52);
+for(const x of [-.34,.34]){
+ cylinder(car,.13,.13,.18,rim,x,.48,1.79);
 }
 car.position.set(0,0,3);scene.add(car);
 
+// Road obstacles: cones, barriers, and rival traffic cars.
 const obstacles=[];
-for(let i=0;i<12;i++){
- const block=new THREE.Mesh(new THREE.BoxGeometry(1.2,.9,1),mat(i%2?0xffb000:0xff5533));
- block.position.set((Math.random()>.5?1:-1)*(1.7+Math.random()*2),.45,-15-i*14);
- scene.add(block);obstacles.push(block);
+function makeCone(){
+ const g=new THREE.Group();
+ cylinder(g,.28,.38,.12,black,0,.06,0);
+ const cone=new THREE.Mesh(new THREE.ConeGeometry(.29,.8,8),mat(0xff7024));
+ cone.position.y=.49;g.add(cone);
+ cylinder(g,.23,.23,.09,white,0,.37,0);
+ return g;
 }
-let steer=0,speed=0,distance=0,crashed=false;
-const keys={};
-addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
-addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+function makeBarrier(){
+ const g=new THREE.Group();
+ box(g,1.55,.65,.35,mat(0xff542d),0,.57,0);
+ box(g,1.62,.13,.4,white,0,.7,0);
+ for(const x of [-.48,0,.48]){
+  const stripe=box(g,.19,.58,.42,white,x,.57,-.02);
+  stripe.rotation.z=-.3;
+ }
+ for(const x of [-.52,.52])box(g,.18,.2,.3,black,x,.16,0);
+ return g;
+}
+function makeRival(){
+ const g=new THREE.Group();
+ const bodyMat=mat([0xff283e,0xffb800,0x9a4dff][Math.floor(Math.random()*3)],.24);
+ box(g,1.45,.42,2.7,bodyMat,0,.55,0);
+ box(g,1.05,.45,1.05,darkGlass,0,.94,-.05);
+ for(const x of [-.76,.76])for(const z of [-.83,.83]){
+  const w=new THREE.Mesh(new THREE.CylinderGeometry(.25,.25,.2,12),tire);
+  w.rotation.z=Math.PI/2;w.position.set(x,.3,z);g.add(w);
+ }
+ for(const x of [-.5,.5])box(g,.28,.1,.06,redLight,x,.65,1.36);
+ return g;
+}
+function placeObstacle(o,z){
+ o.position.set((Math.random()>.5?1:-1)*(1.5+Math.random()*3),0,z);
+}
+for(let i=0;i<16;i++){
+ const type=i%4;
+ const o=type===0?makeRival():type===1?makeBarrier():makeCone();
+ placeObstacle(o,-20-i*13);
+ scene.add(o);obstacles.push(o);
+}
+
+// Input works with touch and keyboard.
+const input={left:false,right:false,gas:false,nitro:false};
 function bind(id,key){
- const b=document.getElementById(id);
- b.addEventListener('pointerdown',e=>{e.preventDefault();keys[key]=true;b.setPointerCapture(e.pointerId)});
- for(const ev of ['pointerup','pointercancel','lostpointercapture'])
-  b.addEventListener(ev,()=>keys[key]=false);
+ const el=$(id);
+ const down=e=>{e.preventDefault();input[key]=true};
+ const up=e=>{e.preventDefault();input[key]=false};
+ el.addEventListener('pointerdown',down);
+ el.addEventListener('pointerup',up);
+ el.addEventListener('pointercancel',up);
+ el.addEventListener('lostpointercapture',up);
 }
-bind('left','arrowleft');bind('right','arrowright');
+bind('left','left');bind('right','right');
+bind('gas','gas');bind('nitro','nitro');
+
+const keys={};
+addEventListener('keydown',e=>{
+ const k=e.key.toLowerCase();
+ if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k))e.preventDefault();
+ keys[k]=true;
+});
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+addEventListener('blur',()=>{
+ Object.keys(input).forEach(k=>input[k]=false);
+ Object.keys(keys).forEach(k=>keys[k]=false);
+});
+
+let speed=0,distance=0,score=0,steer=0,crashed=false,paused=false;
+let last=performance.now();
 
 function reset(){
- speed=0;distance=0;car.position.x=0;crashed=false;
- obstacles.forEach((o,i)=>{o.position.z=-15-i*14;o.position.x=(Math.random()>.5?1:-1)*(1.7+Math.random()*2)});
+ speed=0;distance=0;score=0;steer=0;crashed=false;paused=false;
+ car.position.set(0,0,3);
+ obstacles.forEach((o,i)=>placeObstacle(o,-20-i*13));
+ $('message').textContent='';
+ $('restart').style.display='none';
+ $('pause').textContent='Ⅱ';
 }
-function animate(){
+$('restart').addEventListener('click',reset);
+$('pause').addEventListener('click',()=>{
+ if(crashed)return;
+ paused=!paused;
+ $('pause').textContent=paused?'▶':'Ⅱ';
+ $('message').textContent=paused?'PAUSED':'';
+});
+
+function animate(now){
  requestAnimationFrame(animate);
- if(!crashed){
-  if(keys['arrowup']||keys['w'])speed=Math.min(speed+.12,2.5);
-  else speed=Math.max(speed-.035,0);
-  if(keys['arrowleft']||keys['a'])steer-=.09;
-  if(keys['arrowright']||keys['d'])steer+=.09;
-  steer*=.91;car.position.x+=steer;
-  car.position.x=Math.max(-4.5,Math.min(4.5,car.position.x));
-  distance+=speed*.08;
-  for(const line of lines){line.position.z+=speed;if(line.position.z>10)line.position.z-=200}
+ const dt=Math.min((now-last)/16.667,2);
+ last=now;
+ const gas=input.gas||keys.arrowup||keys.w;
+ const left=input.left||keys.arrowleft||keys.a;
+ const right=input.right||keys.arrowright||keys.d;
+ const nitro=input.nitro||keys.shift;
+ if(!paused&&!crashed){
+  if(gas)speed=Math.min(speed+(nitro?.12:.055)*dt,nitro?3.8:2.5);
+  else speed=Math.max(0,speed-.025*dt);
+
+  if(left)steer-=.075*(.4+speed/2.5)*dt;
+  if(right)steer+=.075*(.4+speed/2.5)*dt;
+  steer*=Math.pow(.89,dt);
+  car.position.x+=steer*dt;
+  car.position.x=Math.max(-5.2,Math.min(5.2,car.position.x));
+  car.rotation.y=-steer*.35;
+
+  distance+=speed*.08*dt;
+  score=Math.floor(distance*10);
+
+  for(const l of lines){
+   l.position.z+=speed*dt;
+   if(l.position.z>12)l.position.z-=275;
+  }
+  for(const o of scenery){
+   o.position.z+=speed*dt;
+   if(o.position.z>15)o.position.z-=255;
+  }
   for(const o of obstacles){
-   o.position.z+=speed;
-   if(o.position.z>8){o.position.z=-170-Math.random()*30;o.position.x=(Math.random()>.5?1:-1)*(1.7+Math.random()*2)}
-   if(Math.abs(o.position.z-car.position.z)<1.3&&Math.abs(o.position.x-car.position.x)<1.2){
-    crashed=true;speed=0;document.getElementById('hint').innerHTML='💥 CRASH! <button onclick="reset()">RACE AGAIN</button>';
+   o.position.z+=speed*dt;
+   if(o.position.z>8){
+    placeObstacle(o,-200-Math.random()*45);
+    score+=100;
+   }
+   if(Math.abs(o.position.z-car.position.z)<1.45&&Math.abs(o.position.x-car.position.x)<1.25){
+    crashed=true;speed=0;
+    $('message').textContent='💥 CRASH!';
+    $('restart').style.display='block';
    }
   }
-  document.getElementById('speed').textContent=Math.round(speed*65);
-  document.getElementById('distance').textContent=Math.floor(distance);
  }
- camera.position.x+=(car.position.x*.5-camera.position.x)*.06;
- camera.lookAt(car.position.x*.25,0,-5);
+ $('speed').textContent=Math.round(speed*65);
+ $('distance').textContent=Math.floor(distance);
+ $('score').textContent=score;
+ $('nitroText').textContent=nitro&&!crashed?'ACTIVE':'READY';
+ $('nitroFill').style.width=(nitro&&!crashed?'100%':Math.max(20,100-speed*18))+'%';
+
+ camera.position.x+=(car.position.x*.45-camera.position.x)*.07;
+ camera.position.y=5.2+(nitro&&!crashed?.25:0);
+ camera.lookAt(car.position.x*.25,.45,-5);
  renderer.render(scene,camera);
 }
 addEventListener('resize',()=>{
- camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
+ camera.aspect=innerWidth/innerHeight;
+ camera.updateProjectionMatrix();
  renderer.setSize(innerWidth,innerHeight);
 });
-animate();
+reset();
+requestAnimationFrame(animate);
+})();
 </script>
 </body>
-  </html>
-  
+</html>
