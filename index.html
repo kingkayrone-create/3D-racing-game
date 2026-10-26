@@ -1,0 +1,137 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Racing Game</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;overflow:hidden;background:#87ceeb;font-family:Arial,sans-serif}
+#hud{position:fixed;top:12px;left:12px;color:white;background:#111c;padding:12px 16px;border-radius:12px;z-index:2}
+#hud h2{margin:0 0 6px;color:#00ff9d}
+#controls{position:fixed;bottom:22px;left:0;right:0;display:flex;justify-content:space-between;padding:0 22px;z-index:2}
+button{background:#111d;color:white;border:2px solid #00ff9d;border-radius:15px;padding:17px 24px;font-size:24px;font-weight:bold;touch-action:none}
+#hint{position:fixed;bottom:100px;width:100%;text-align:center;color:white;text-shadow:0 2px 4px black;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="hud"><h2>🏁 TURBO RACE</h2><div>Speed: <span id="speed">0</span> km/h</div><div>Distance: <span id="distance">0</span> m</div></div>
+<div id="hint">Hold the arrows to steer</div>
+<div id="controls">
+<button id="left">⬅️</button>
+<button id="right">➡️</button>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x87ceeb);
+scene.fog=new THREE.Fog(0x87ceeb,45,180);
+const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,300);
+camera.position.set(0,5,10);
+const renderer=new THREE.WebGLRenderer({antialias:false});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+renderer.shadowMap.enabled=false;
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x53713b,2));
+const sun=new THREE.DirectionalLight(0xffffff,2);
+sun.position.set(-5,12,5);scene.add(sun);
+
+const mat=(color)=>new THREE.MeshLambertMaterial({color});
+const grass=mat(0x309447), asphalt=mat(0x30333b);
+const road=new THREE.Mesh(new THREE.PlaneGeometry(12,240),asphalt);
+road.rotation.x=-Math.PI/2;road.position.set(0,-.06,-75);scene.add(road);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(300,300),grass);
+ground.rotation.x=-Math.PI/2;ground.position.y=-.12;scene.add(ground);
+
+const lines=[];
+for(let z=-190;z<20;z+=10){
+ const line=new THREE.Mesh(new THREE.BoxGeometry(.14,.025,4),mat(0xffffff));
+ line.position.set(0,.01,z);scene.add(line);lines.push(line);
+}
+for(const x of [-6,6]){
+ const edge=new THREE.Mesh(new THREE.BoxGeometry(.18,.1,240),mat(0xffffff));
+ edge.position.set(x,0,-75);scene.add(edge);
+}
+for(let z=-190;z<10;z+=12){
+ for(const x of [-1.8,1.8]){
+  const tree=new THREE.Group();
+  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.12,.18,1,6),mat(0x704324));
+  trunk.position.y=.5;tree.add(trunk);
+  const leaves=new THREE.Mesh(new THREE.ConeGeometry(.9,2.4,7),mat(0x126b35));
+  leaves.position.y=2;tree.add(leaves);
+  tree.position.set(x<0?-9:9,0,z);
+  scene.add(tree);
+ }
+}
+
+const car=new THREE.Group();
+const red=mat(0xff243a),black=mat(0x171923),glass=mat(0x80dfff);
+const body=new THREE.Mesh(new THREE.BoxGeometry(1.65,.48,3),red);
+body.position.y=.65;car.add(body);
+const cabin=new THREE.Mesh(new THREE.BoxGeometry(1.15,.55,1.35),glass);
+cabin.position.set(0,1.12,-.15);car.add(cabin);
+for(const x of [-.91,.91])for(const z of [-.92,.95]){
+ const wheel=new THREE.Mesh(new THREE.BoxGeometry(.28,.55,.65),black);
+ wheel.position.set(x,.42,z);car.add(wheel);
+}
+car.position.set(0,0,3);scene.add(car);
+
+const obstacles=[];
+for(let i=0;i<12;i++){
+ const block=new THREE.Mesh(new THREE.BoxGeometry(1.2,.9,1),mat(i%2?0xffb000:0xff5533));
+ block.position.set((Math.random()>.5?1:-1)*(1.7+Math.random()*2),.45,-15-i*14);
+ scene.add(block);obstacles.push(block);
+}
+let steer=0,speed=0,distance=0,crashed=false;
+const keys={};
+addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+function bind(id,key){
+ const b=document.getElementById(id);
+ b.addEventListener('pointerdown',e=>{e.preventDefault();keys[key]=true;b.setPointerCapture(e.pointerId)});
+ for(const ev of ['pointerup','pointercancel','lostpointercapture'])
+  b.addEventListener(ev,()=>keys[key]=false);
+}
+bind('left','arrowleft');bind('right','arrowright');
+
+function reset(){
+ speed=0;distance=0;car.position.x=0;crashed=false;
+ obstacles.forEach((o,i)=>{o.position.z=-15-i*14;o.position.x=(Math.random()>.5?1:-1)*(1.7+Math.random()*2)});
+}
+function animate(){
+ requestAnimationFrame(animate);
+ if(!crashed){
+  if(keys['arrowup']||keys['w'])speed=Math.min(speed+.12,2.5);
+  else speed=Math.max(speed-.035,0);
+  if(keys['arrowleft']||keys['a'])steer-=.09;
+  if(keys['arrowright']||keys['d'])steer+=.09;
+  steer*=.91;car.position.x+=steer;
+  car.position.x=Math.max(-4.5,Math.min(4.5,car.position.x));
+  distance+=speed*.08;
+  for(const line of lines){line.position.z+=speed;if(line.position.z>10)line.position.z-=200}
+  for(const o of obstacles){
+   o.position.z+=speed;
+   if(o.position.z>8){o.position.z=-170-Math.random()*30;o.position.x=(Math.random()>.5?1:-1)*(1.7+Math.random()*2)}
+   if(Math.abs(o.position.z-car.position.z)<1.3&&Math.abs(o.position.x-car.position.x)<1.2){
+    crashed=true;speed=0;document.getElementById('hint').innerHTML='💥 CRASH! <button onclick="reset()">RACE AGAIN</button>';
+   }
+  }
+  document.getElementById('speed').textContent=Math.round(speed*65);
+  document.getElementById('distance').textContent=Math.floor(distance);
+ }
+ camera.position.x+=(car.position.x*.5-camera.position.x)*.06;
+ camera.lookAt(car.position.x*.25,0,-5);
+ renderer.render(scene,camera);
+}
+addEventListener('resize',()=>{
+ camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth,innerHeight);
+});
+animate();
+</script>
+</body>
+  </html>
+  
